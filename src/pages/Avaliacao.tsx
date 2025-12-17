@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { QuestionCard } from '@/components/QuestionCard';
 import { CommentsSection } from '@/components/CommentsSection';
-import { PersonalizeButton } from '@/components/PersonalizeButton';
-import { PersonalizationModal } from '@/components/PersonalizationModal';
+import { OrientacoesStep } from '@/components/OrientacoesStep';
 import { sections, Section } from '@/data/evaluationQuestions';
 import { toast } from '@/hooks/use-toast';
 
@@ -32,7 +31,6 @@ interface EvaluationData {
 export default function Avaliacao() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const [showPersonalization, setShowPersonalization] = useState(false);
   
   const [evaluationData, setEvaluationData] = useState<EvaluationData>({
     identification: {
@@ -72,6 +70,40 @@ export default function Avaliacao() {
     }));
   };
 
+  const validateSection = (sectionIndex: number): boolean => {
+    const section = sections[sectionIndex];
+    const sectionRatings = evaluationData.ratings[section.id] || {};
+    const sectionComment = evaluationData.comments[section.id] || '';
+
+    // Check if all questions are answered
+    const allQuestionsAnswered = section.questions.every(
+      q => sectionRatings[q.id] !== null && sectionRatings[q.id] !== undefined
+    );
+
+    // Check if comment is filled
+    const hasComment = sectionComment.trim().length > 0;
+
+    if (!allQuestionsAnswered) {
+      toast({
+        title: "Questões pendentes",
+        description: "Por favor, responda todas as questões desta seção antes de continuar.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!hasComment) {
+      toast({
+        title: "Comentário obrigatório",
+        description: "Por favor, preencha o campo de comentários antes de continuar.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const handleNext = () => {
     if (currentStep === 0) {
       // Validate identification
@@ -84,9 +116,18 @@ export default function Avaliacao() {
         });
         return;
       }
+    } else if (currentStep === 1) {
+      // Orientações step - no validation needed
+    } else if (currentStep >= 2 && currentStep <= sections.length + 1) {
+      // Section validation - currentStep 2 is section 0, etc.
+      const sectionIndex = currentStep - 2;
+      if (!validateSection(sectionIndex)) {
+        return;
+      }
     }
     
-    if (currentStep < sections.length) {
+    // Total steps: 0 (Identification) + 1 (Orientações) + 5 sections = 7 steps (0-6)
+    if (currentStep < sections.length + 1) {
       setCurrentStep(prev => prev + 1);
     } else {
       // Final step - save evaluation
@@ -190,12 +231,23 @@ export default function Avaliacao() {
     </div>
   );
 
+  const renderCurrentStep = () => {
+    if (currentStep === 0) {
+      return renderIdentification();
+    } else if (currentStep === 1) {
+      return <OrientacoesStep />;
+    } else {
+      // currentStep 2 = sections[0], currentStep 3 = sections[1], etc.
+      return renderSection(sections[currentStep - 2]);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <Header title="Avaliação" />
       <ProgressBar currentStep={currentStep} />
 
-      {currentStep === 0 ? renderIdentification() : renderSection(sections[currentStep - 1])}
+      {renderCurrentStep()}
 
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4">
         <div className="max-w-3xl mx-auto flex justify-between">
@@ -207,16 +259,10 @@ export default function Avaliacao() {
             Anterior
           </Button>
           <Button onClick={handleNext}>
-            {currentStep === sections.length ? 'Finalizar' : 'Próximo'}
+            {currentStep === sections.length + 1 ? 'Finalizar' : 'Próximo'}
           </Button>
         </div>
       </div>
-
-      <PersonalizeButton onClick={() => setShowPersonalization(true)} />
-      <PersonalizationModal 
-        open={showPersonalization} 
-        onOpenChange={setShowPersonalization} 
-      />
     </div>
   );
 }
