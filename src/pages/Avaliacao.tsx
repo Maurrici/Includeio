@@ -10,6 +10,8 @@ import { CommentsSection } from '@/components/CommentsSection';
 import { OrientacoesStep } from '@/components/OrientacoesStep';
 import { sections, Section } from '@/data/evaluationQuestions';
 import { toast } from '@/hooks/use-toast';
+import { Evaluation, calculateSectionScore, calculateOverallScore } from '@/types/evaluation';
+import { EvaluationService } from '@/services/evaluationService';
 
 interface IdentificationData {
   nomeAplicacao: string;
@@ -130,12 +132,23 @@ export default function Avaliacao() {
     if (currentStep < sections.length + 1) {
       setCurrentStep(prev => prev + 1);
     } else {
-      // Final step - save evaluation
-      toast({
-        title: "Avaliação concluída!",
-        description: "Sua avaliação foi salva com sucesso.",
-      });
-      navigate('/');
+      // Final step - calculate scores and save evaluation
+      try {
+        const evaluation = createEvaluation();
+        EvaluationService.save(evaluation);
+        toast({
+          title: "Avaliação concluída!",
+          description: "Sua avaliação foi salva com sucesso.",
+        });
+        navigate('/');
+      } catch (error) {
+        console.error('Error saving evaluation:', error);
+        toast({
+          title: "Erro ao salvar",
+          description: "Ocorreu um erro ao salvar a avaliação. Tente novamente.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -143,6 +156,44 @@ export default function Avaliacao() {
     if (currentStep > 0) {
       setCurrentStep(prev => prev - 1);
     }
+  };
+
+  const createEvaluation = (): Evaluation => {
+    const now = new Date().toISOString();
+    const sectionScores = sections.map(section => {
+      const sectionRatings = evaluationData.ratings[section.id] || {};
+      const questions = section.questions.map(q => ({
+        questionId: q.id,
+        score: sectionRatings[q.id] || 1 // Default to 1 if somehow missing
+      }));
+      
+      const { rawScore, normalizedScore } = calculateSectionScore(questions);
+      
+      return {
+        sectionId: section.id,
+        sectionName: section.name,
+        rawScore,
+        normalizedScore,
+        questions,
+        comment: evaluationData.comments[section.id] || ''
+      };
+    });
+
+    const { totalRawScore, normalizedScore } = calculateOverallScore(sectionScores);
+
+    return {
+      id: crypto.randomUUID(),
+      applicationName: evaluationData.identification.nomeAplicacao,
+      flow: evaluationData.identification.fluxoAvaliado,
+      applicationType: evaluationData.identification.tipoAplicacao || undefined,
+      applicationLink: evaluationData.identification.linkAplicacao || undefined,
+      totalRawScore,
+      normalizedScore,
+      overallScore: normalizedScore, // Same as normalizedScore
+      sectionScores,
+      createdAt: now,
+      updatedAt: now
+    };
   };
 
   const renderIdentification = () => (

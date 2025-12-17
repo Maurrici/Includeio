@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { PersonalizeButton } from '@/components/PersonalizeButton';
@@ -12,28 +12,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-
-interface Evaluation {
-  id: string;
-  aplicacao: string;
-  fluxo: string;
-  notaGeral: number;
-}
-
-const mockEvaluations: Evaluation[] = [
-  { id: '9080797679', aplicacao: 'Mercado Livre', fluxo: 'Pesquisa', notaGeral: 4 },
-  { id: '9080797680', aplicacao: 'Mercado Livre', fluxo: 'Compra', notaGeral: 5 },
-  { id: '9080797681', aplicacao: 'Mercado Livre', fluxo: 'Cadastro', notaGeral: 2 },
-  { id: '9080797682', aplicacao: 'Mercado Livre', fluxo: 'Venda', notaGeral: 1 },
-  { id: '9080797683', aplicacao: 'Ifood', fluxo: 'Pesquisa', notaGeral: 8 },
-  { id: '9080797684', aplicacao: 'Ifood', fluxo: 'Compra', notaGeral: 4 },
-  { id: '9080797685', aplicacao: 'Ifood', fluxo: 'Cadastro', notaGeral: 3 },
-  { id: '9080797686', aplicacao: 'Ifood', fluxo: 'Venda', notaGeral: 8 },
-];
+import { Evaluation } from '@/types/evaluation';
+import { EvaluationService } from '@/services/evaluationService';
 
 export default function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPersonalization, setShowPersonalization] = useState(false);
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+
+  const loadEvaluations = () => {
+    // Load evaluations from storage
+    const loadedEvaluations = EvaluationService.getAll();
+    // Sort by creation date, newest first
+    loadedEvaluations.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    setEvaluations(loadedEvaluations);
+  };
+
+  useEffect(() => {
+    // Load evaluations on mount and when location changes (e.g., returning from evaluation)
+    loadEvaluations();
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,30 +51,55 @@ export default function Home() {
           </Button>
         </div>
 
-        <div className="bg-card rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-primary">
-                <TableHead className="text-primary-foreground font-semibold">Aplicação</TableHead>
-                <TableHead className="text-primary-foreground font-semibold">Fluxo</TableHead>
-                <TableHead className="text-primary-foreground font-semibold">Nota geral</TableHead>
-                <TableHead className="text-primary-foreground font-semibold">Relatório</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockEvaluations.map((evaluation) => (
-                <TableRow key={evaluation.id} className="border-b border-border">
-                  <TableCell className="text-foreground">{evaluation.aplicacao}</TableCell>
-                  <TableCell className="text-foreground">{evaluation.fluxo}</TableCell>
-                  <TableCell className="text-foreground">{evaluation.notaGeral}</TableCell>
-                  <TableCell>
-                    <button className="text-accent hover:underline">{evaluation.id}</button>
-                  </TableCell>
+        {evaluations.length === 0 ? (
+          <div className="bg-card rounded-lg p-12 text-center">
+            <p className="text-muted-foreground text-lg mb-4">
+              Nenhuma avaliação realizada ainda.
+            </p>
+            <p className="text-muted-foreground text-sm">
+              Clique em "Nova Avaliação" para começar.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-card rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-primary">
+                  <TableHead className="text-primary-foreground font-semibold">Aplicação</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Fluxo</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Nota geral</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {evaluations.map((evaluation) => (
+                  <TableRow 
+                    key={evaluation.id} 
+                    className="border-b border-border hover:bg-secondary/50 cursor-pointer"
+                    onClick={() => navigate(`/avaliacao/${evaluation.id}`)}
+                  >
+                    <TableCell className="text-foreground">{evaluation.applicationName}</TableCell>
+                    <TableCell className="text-foreground">{evaluation.flow}</TableCell>
+                    <TableCell className="text-foreground font-semibold">
+                      {evaluation.overallScore.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <button 
+                        className="text-accent hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/avaliacao/${evaluation.id}`);
+                        }}
+                      >
+                        Ver detalhes
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </main>
 
       <PersonalizeButton onClick={() => setShowPersonalization(true)} />

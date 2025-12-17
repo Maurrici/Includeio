@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AccessibilityProvider } from "@/contexts/AccessibilityContext";
 import Home from "./pages/Home";
 import Avaliacao from "./pages/Avaliacao";
+import EvaluationDetail from "./pages/EvaluationDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/avaliacao" element={<Avaliacao />} />
+            <Route path="/avaliacao/:id" element={<EvaluationDetail />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
