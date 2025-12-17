@@ -176,6 +176,7 @@ export const sections: Section[] = [
 
 export const evaluationSteps = [
   'Identificação',
+  'Orientações',
   'Clareza e Compreensão',
   'Navegação e Encontrabilidade',
   'Foco e Atenção',
