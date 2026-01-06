@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: inclusio_db
+    environment:
+      POSTGRES_USER: inclusio_user
+      POSTGRES_PASSWORD: inclusio_password
+      POSTGRES_DB: inclusio_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inclusio_user -d inclusio_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inclusio_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inclusio_api
+    environment:
+      DATABASE_URL: postgresql://inclusio_user:inclusio_password@db:5432/inclusio_db
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - inclusio_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  inclusio_network:
+    driver: bridge
