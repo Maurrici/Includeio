@@ -131,6 +131,7 @@ export default function Avaliacao() {
     // Total steps: 0 (Identification) + 1 (Orientações) + 5 sections = 7 steps (0-6)
     if (currentStep < sections.length + 1) {
       setCurrentStep(prev => prev + 1);
+      window.scrollTo(0, 0);
     } else {
       // Final step - calculate scores and save evaluation
       try {

@@ -16,7 +16,7 @@ export function ProgressBar({ currentStep }: ProgressBarProps) {
         />
         
         {evaluationSteps.map((step, index) => (
-          <div key={step} className="relative z-10 flex flex-col items-center">
+          <div key={step} className="relative z-10 flex flex-col items-center" style={{top: `${index >= 2 ? "18px" : "12px"}`}}>
             <div 
               className={`w-4 h-4 rounded-full border-2 transition-colors ${
                 index <= currentStep 
