@@ -111,3 +111,26 @@ export function calculateOverallScore(sectionScores: SectionScore[]): {
   return { totalRawScore, normalizedScore };
 }
 
+// Backend API types
+export interface Application {
+  id: number;
+  name: string;
+  link: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationType {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
+export interface Flow {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

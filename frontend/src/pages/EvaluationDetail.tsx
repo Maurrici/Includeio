@@ -15,19 +15,23 @@ export default function EvaluationDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) {
-      navigate('/');
-      return;
-    }
+    const loadEvaluation = async () => {
+      if (!id) {
+        navigate('/');
+        return;
+      }
 
-    const loadedEvaluation = EvaluationService.getById(id);
-    if (!loadedEvaluation) {
-      navigate('/');
-      return;
-    }
+      const loadedEvaluation = await EvaluationService.getById(id);
+      if (!loadedEvaluation) {
+        navigate('/');
+        return;
+      }
 
-    setEvaluation(loadedEvaluation);
-    setLoading(false);
+      setEvaluation(loadedEvaluation);
+      setLoading(false);
+    };
+
+    loadEvaluation();
   }, [id, navigate]);
 
   if (loading) {

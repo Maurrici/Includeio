@@ -1,20 +1,35 @@
 import { Evaluation } from '@/types/evaluation';
+import { Application, ApplicationType, Flow } from '@/types/evaluation';
 
-const STORAGE_KEY = 'inclusio_evaluations';
+const API_BASE_URL = '/api';
 
 /**
- * Evaluation service for managing evaluations
- * Currently uses localStorage, but structured to easily migrate to MySQL
+ * Evaluation service for managing evaluations via API
  */
 export class EvaluationService {
   /**
    * Get all evaluations
    */
-  static getAll(): Evaluation[] {
+  static async getAll(): Promise<Evaluation[]> {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return [];
-      return JSON.parse(stored) as Evaluation[];
+      const response = await fetch(`${API_BASE_URL}/evaluations`);
+      if (!response.ok) throw new Error('Failed to fetch evaluations');
+      const backendEvaluations = await response.json();
+      
+      // Map backend format to frontend format
+      return backendEvaluations.map((evaluation: any) => ({
+        id: evaluation.id,
+        applicationName: evaluation.application?.name || 'Unknown',
+        flow: evaluation.flow?.name || 'Unknown',
+        applicationType: evaluation.applicationType?.name || undefined,
+        applicationLink: evaluation.application?.link || undefined,
+        totalRawScore: evaluation.totalRawScore,
+        normalizedScore: evaluation.normalizedScore,
+        overallScore: evaluation.overallScore,
+        sectionScores: evaluation.sectionScores || [],
+        createdAt: evaluation.createdAt,
+        updatedAt: evaluation.updatedAt
+      }));
     } catch (error) {
       console.error('Error loading evaluations:', error);
       return [];
@@ -24,85 +39,137 @@ export class EvaluationService {
   /**
    * Get evaluation by ID
    */
-  static getById(id: string): Evaluation | null {
-    const evaluations = this.getAll();
-    return evaluations.find(e => e.id === id) || null;
+  static async getById(id: string): Promise<Evaluation | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/evaluations/${id}`);
+      if (!response.ok) return null;
+      const evaluation = await response.json();
+      
+      // Map backend format to frontend format
+      return {
+        id: evaluation.id,
+        applicationName: evaluation.application?.name || 'Unknown',
+        flow: evaluation.flow?.name || 'Unknown',
+        applicationType: evaluation.applicationType?.name || undefined,
+        applicationLink: evaluation.application?.link || undefined,
+        totalRawScore: evaluation.totalRawScore,
+        normalizedScore: evaluation.normalizedScore,
+        overallScore: evaluation.overallScore,
+        sectionScores: evaluation.sectionScores || [],
+        createdAt: evaluation.createdAt,
+        updatedAt: evaluation.updatedAt
+      };
+    } catch (error) {
+      console.error('Error loading evaluation:', error);
+      return null;
+    }
   }
 
   /**
    * Save a new evaluation
    */
-  static save(evaluation: Evaluation): void {
-    const evaluations = this.getAll();
-    evaluations.push(evaluation);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(evaluations));
+  static async save(evaluation: {
+    application_id: number;
+    application_type_id: number;
+    flow_id: number;
+    totalRawScore: number;
+    normalizedScore: number;
+    overallScore: number;
+    sectionScores: Array<{
+      sectionId: string;
+      sectionName: string;
+      rawScore: number;
+      normalizedScore: number;
+      comment: string;
+      questions: Array<{ questionId: string; score: number }>;
+    }>;
+  }): Promise<Evaluation | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/evaluations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evaluation),
+      });
+      if (!response.ok) throw new Error('Failed to save evaluation');
+      return await response.json();
+    } catch (error) {
+      console.error('Error saving evaluation:', error);
+      return null;
+    }
   }
 
   /**
    * Delete an evaluation
    */
-  static delete(id: string): boolean {
-    const evaluations = this.getAll();
-    const filtered = evaluations.filter(e => e.id !== id);
-    if (filtered.length === evaluations.length) {
-      return false; // Not found
+  static async delete(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/evaluations/${id}`, {
+        method: 'DELETE',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error deleting evaluation:', error);
+      return false;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-    return true;
   }
 
   /**
-   * Clear all evaluations (for testing/reset)
+   * Update an evaluation
    */
-  static clearAll(): void {
-    localStorage.removeItem(STORAGE_KEY);
+  static async update(id: string, evaluation: Partial<Evaluation>): Promise<Evaluation | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/evaluations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evaluation),
+      });
+      if (!response.ok) throw new Error('Failed to update evaluation');
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating evaluation:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all applications
+   */
+  static async getApplications(): Promise<Application[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/applications`);
+      if (!response.ok) throw new Error('Failed to fetch applications');
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading applications:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get application types for a specific application
+   */
+  static async getApplicationTypes(applicationId: number): Promise<ApplicationType[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/types`);
+      if (!response.ok) throw new Error('Failed to fetch application types');
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading application types:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get flows for a specific application
+   */
+  static async getApplicationFlows(applicationId: number): Promise<Flow[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/flows`);
+      if (!response.ok) throw new Error('Failed to fetch application flows');
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading application flows:', error);
+      return [];
+    }
   }
 }
-
-/**
- * Future MySQL implementation would look like:
- * 
- * export class EvaluationService {
- *   static async getAll(): Promise<Evaluation[]> {
- *     const connection = await mysql.createConnection(config);
- *     const [evaluations] = await connection.execute(`
- *       SELECT e.*, 
- *         JSON_ARRAYAGG(JSON_OBJECT(
- *           'sectionId', ss.section_id,
- *           'sectionName', ss.section_name,
- *           'rawScore', ss.raw_score,
- *           'normalizedScore', ss.normalized_score
- *         )) as sectionScores
- *       FROM evaluations e
- *       LEFT JOIN section_scores ss ON e.id = ss.evaluation_id
- *       GROUP BY e.id
- *       ORDER BY e.created_at DESC
- *     `);
- *     return evaluations;
- *   }
- *   
- *   static async save(evaluation: Evaluation): Promise<void> {
- *     const connection = await mysql.createConnection(config);
- *     await connection.beginTransaction();
- *     try {
- *       await connection.execute(`
- *         INSERT INTO evaluations (id, application_name, flow, ...)
- *         VALUES (?, ?, ?, ...)
- *       `, [evaluation.id, evaluation.applicationName, ...]);
- *       
- *       for (const section of evaluation.sectionScores) {
- *         await connection.execute(`
- *           INSERT INTO section_scores (evaluation_id, section_id, ...)
- *           VALUES (?, ?, ...)
- *         `, [evaluation.id, section.sectionId, ...]);
- *       }
- *       
- *       await connection.commit();
- *     } catch (error) {
- *       await connection.rollback();
- *       throw error;
- *     }
- *   }
- * }
- */
-

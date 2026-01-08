@@ -1,23 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { ProgressBar } from '@/components/ProgressBar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QuestionCard } from '@/components/QuestionCard';
 import { CommentsSection } from '@/components/CommentsSection';
 import { OrientacoesStep } from '@/components/OrientacoesStep';
 import { sections, Section } from '@/data/evaluationQuestions';
 import { toast } from '@/hooks/use-toast';
-import { Evaluation, calculateSectionScore, calculateOverallScore } from '@/types/evaluation';
+import { Evaluation, calculateSectionScore, calculateOverallScore, Application, ApplicationType, Flow } from '@/types/evaluation';
 import { EvaluationService } from '@/services/evaluationService';
 
 interface IdentificationData {
-  nomeAplicacao: string;
-  tipoAplicacao: string;
-  linkAplicacao: string;
-  fluxoAvaliado: string;
+  applicationId: number | null;
+  applicationTypeId: number | null;
+  flowId: number | null;
 }
 
 interface SectionRatings {
@@ -34,22 +34,95 @@ export default function Avaliacao() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationTypes, setApplicationTypes] = useState<ApplicationType[]>([]);
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+  
   const [evaluationData, setEvaluationData] = useState<EvaluationData>({
     identification: {
-      nomeAplicacao: '',
-      tipoAplicacao: '',
-      linkAplicacao: '',
-      fluxoAvaliado: '',
+      applicationId: null,
+      applicationTypeId: null,
+      flowId: null,
     },
     ratings: {},
     comments: {},
   });
 
-  const handleIdentificationChange = (field: keyof IdentificationData, value: string) => {
+  useEffect(() => {
+    const loadApplications = async () => {
+      setLoadingData(true);
+      try {
+        const apps = await EvaluationService.getApplications();
+        setApplications(apps);
+      } catch (error) {
+        toast({
+          title: "Erro ao carregar aplicações",
+          description: "Não foi possível carregar a lista de aplicações.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    loadApplications();
+  }, []);
+
+  const handleIdentificationChange = async (field: keyof IdentificationData, value: number | null) => {
     setEvaluationData(prev => ({
       ...prev,
       identification: { ...prev.identification, [field]: value }
     }));
+
+    // When application changes, load types and reset type/flow
+    if (field === 'applicationId' && value) {
+      setLoadingData(true);
+      try {
+        const types = await EvaluationService.getApplicationTypes(value);
+        setApplicationTypes(types);
+        setFlows([]);
+        setEvaluationData(prev => ({
+          ...prev,
+          identification: { 
+            ...prev.identification, 
+            applicationTypeId: null, 
+            flowId: null 
+          }
+        }));
+      } catch (error) {
+        toast({
+          title: "Erro ao carregar tipos",
+          description: "Não foi possível carregar os tipos de aplicação.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingData(false);
+      }
+    }
+
+    // When type changes, load flows and reset flow
+    if (field === 'applicationTypeId' && value && evaluationData.identification.applicationId) {
+      setLoadingData(true);
+      try {
+        const appFlows = await EvaluationService.getApplicationFlows(evaluationData.identification.applicationId);
+        setFlows(appFlows);
+        setEvaluationData(prev => ({
+          ...prev,
+          identification: { 
+            ...prev.identification, 
+            flowId: null 
+          }
+        }));
+      } catch (error) {
+        toast({
+          title: "Erro ao carregar fluxos",
+          description: "Não foi possível carregar os fluxos da aplicação.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingData(false);
+      }
+    }
   };
 
   const handleRatingChange = (sectionId: string, questionId: string, value: number) => {
@@ -106,14 +179,14 @@ export default function Avaliacao() {
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep === 0) {
       // Validate identification
-      const { nomeAplicacao, linkAplicacao, fluxoAvaliado } = evaluationData.identification;
-      if (!nomeAplicacao || !linkAplicacao || !fluxoAvaliado) {
+      const { applicationId, applicationTypeId, flowId } = evaluationData.identification;
+      if (!applicationId || !applicationTypeId || !flowId) {
         toast({
           title: "Campos obrigatórios",
-          description: "Por favor, preencha todos os campos obrigatórios.",
+          description: "Por favor, selecione todos os campos obrigatórios.",
           variant: "destructive"
         });
         return;
@@ -136,7 +209,7 @@ export default function Avaliacao() {
       // Final step - calculate scores and save evaluation
       try {
         const evaluation = createEvaluation();
-        EvaluationService.save(evaluation);
+        await EvaluationService.save(evaluation);
         toast({
           title: "Avaliação concluída!",
           description: "Sua avaliação foi salva com sucesso.",
@@ -159,8 +232,7 @@ export default function Avaliacao() {
     }
   };
 
-  const createEvaluation = (): Evaluation => {
-    const now = new Date().toISOString();
+  const createEvaluation = () => {
     const sectionScores = sections.map(section => {
       const sectionRatings = evaluationData.ratings[section.id] || {};
       const questions = section.questions.map(q => ({
@@ -175,25 +247,21 @@ export default function Avaliacao() {
         sectionName: section.name,
         rawScore,
         normalizedScore,
-        questions,
-        comment: evaluationData.comments[section.id] || ''
+        comment: evaluationData.comments[section.id] || '',
+        questions
       };
     });
 
     const { totalRawScore, normalizedScore } = calculateOverallScore(sectionScores);
 
     return {
-      id: crypto.randomUUID(),
-      applicationName: evaluationData.identification.nomeAplicacao,
-      flow: evaluationData.identification.fluxoAvaliado,
-      applicationType: evaluationData.identification.tipoAplicacao || undefined,
-      applicationLink: evaluationData.identification.linkAplicacao || undefined,
+      application_id: evaluationData.identification.applicationId!,
+      application_type_id: evaluationData.identification.applicationTypeId!,
+      flow_id: evaluationData.identification.flowId!,
       totalRawScore,
       normalizedScore,
       overallScore: normalizedScore, // Same as normalizedScore
-      sectionScores,
-      createdAt: now,
-      updatedAt: now
+      sectionScores
     };
   };
 
@@ -201,59 +269,77 @@ export default function Avaliacao() {
     <div className="max-w-3xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-center mb-2">Identificação</h2>
       <p className="text-muted-foreground text-center mb-8">
-        Informe as informações essenciais da aplicação que será avaliada, incluindo tipo, link de acesso e o fluxo específico que será analisado.
+        Selecione a aplicação, seu tipo e o fluxo específico que será avaliado.
       </p>
 
       <div className="space-y-6">
         <div className="bg-secondary rounded-lg p-6">
           <label className="block text-secondary-foreground font-medium mb-2">
-            Qual é o nome da aplicação que será avaliada?*
+            Selecione a aplicação a ser avaliada:*
           </label>
-          <Input
-            value={evaluationData.identification.nomeAplicacao}
-            onChange={(e) => handleIdentificationChange('nomeAplicacao', e.target.value)}
-            className="bg-card"
-            placeholder="Ex: Mercado Livre, iFood, etc."
-          />
+          <Select
+            value={evaluationData.identification.applicationId?.toString() || ''}
+            onValueChange={(value) => handleIdentificationChange('applicationId', parseInt(value))}
+            disabled={loadingData}
+          >
+            <SelectTrigger className="bg-card">
+              <SelectValue placeholder="Selecione uma aplicação..." />
+            </SelectTrigger>
+            <SelectContent>
+              {applications.map((app) => (
+                <SelectItem key={app.id} value={app.id.toString()}>
+                  {app.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="bg-secondary rounded-lg p-6">
           <label className="block text-secondary-foreground font-medium mb-2">
-            Qual é o tipo da aplicação?
+            Selecione o tipo da aplicação:*
           </label>
-          <Input
-            value={evaluationData.identification.tipoAplicacao}
-            onChange={(e) => handleIdentificationChange('tipoAplicacao', e.target.value)}
-            className="bg-card"
-            placeholder="Ex: Site, App móvel, Sistema web, etc."
-          />
+          <Select
+            value={evaluationData.identification.applicationTypeId?.toString() || ''}
+            onValueChange={(value) => handleIdentificationChange('applicationTypeId', parseInt(value))}
+            disabled={loadingData || !evaluationData.identification.applicationId}
+          >
+            <SelectTrigger className="bg-card">
+              <SelectValue placeholder="Selecione o tipo..." />
+            </SelectTrigger>
+            <SelectContent>
+              {applicationTypes.map((type) => (
+                <SelectItem key={type.id} value={type.id.toString()}>
+                  {type.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="bg-secondary rounded-lg p-6">
           <label className="block text-secondary-foreground font-medium mb-2">
-            Informe o link (URL) para acessar a aplicação:*
-          </label>
-          <Input
-            value={evaluationData.identification.linkAplicacao}
-            onChange={(e) => handleIdentificationChange('linkAplicacao', e.target.value)}
-            className="bg-card"
-            placeholder="https://..."
-          />
-        </div>
-
-        <div className="bg-secondary rounded-lg p-6">
-          <label className="block text-secondary-foreground font-medium mb-2">
-            Qual fluxo, funcionalidade ou seção específica da aplicação será avaliada?*
+            Selecione o fluxo a ser avaliado:*
           </label>
           <p className="text-sm text-muted-foreground mb-3">
-            Defina com detalhes o fluxo que você irá avaliar. Exemplos: processo de login, busca de produtos, preenchimento de formulário, página de perfil, etc.
+            Selecione o fluxo específico que você irá avaliar.
           </p>
-          <Textarea
-            value={evaluationData.identification.fluxoAvaliado}
-            onChange={(e) => handleIdentificationChange('fluxoAvaliado', e.target.value)}
-            className="bg-card min-h-[100px]"
-            placeholder="Descreva o fluxo a ser avaliado..."
-          />
+          <Select
+            value={evaluationData.identification.flowId?.toString() || ''}
+            onValueChange={(value) => handleIdentificationChange('flowId', parseInt(value))}
+            disabled={loadingData || !evaluationData.identification.applicationTypeId}
+          >
+            <SelectTrigger className="bg-card">
+              <SelectValue placeholder="Selecione um fluxo..." />
+            </SelectTrigger>
+            <SelectContent>
+              {flows.map((flow) => (
+                <SelectItem key={flow.id} value={flow.id.toString()}>
+                  {flow.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>

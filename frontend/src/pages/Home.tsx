@@ -21,9 +21,9 @@ export default function Home() {
   const [showPersonalization, setShowPersonalization] = useState(false);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
 
-  const loadEvaluations = () => {
+  const loadEvaluations = async () => {
     // Load evaluations from storage
-    const loadedEvaluations = EvaluationService.getAll();
+    const loadedEvaluations = await EvaluationService.getAll();
     // Sort by creation date, newest first
     loadedEvaluations.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
