@@ -12,28 +12,38 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Evaluation } from '@/types/evaluation';
+import { ApplicationWithStats } from '@/types/evaluation';
 import { EvaluationService } from '@/services/evaluationService';
 
 export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPersonalization, setShowPersonalization] = useState(false);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [applications, setApplications] = useState<ApplicationWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const loadEvaluations = async () => {
-    // Load evaluations from storage
-    const loadedEvaluations = await EvaluationService.getAll();
-    // Sort by creation date, newest first
-    loadedEvaluations.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    setEvaluations(loadedEvaluations);
+  const loadApplications = async () => {
+    setLoading(true);
+    try {
+      const loadedApplications = await EvaluationService.getApplicationsWithStats();
+      // Sort by evaluation count (descending), then by name
+      loadedApplications.sort((a, b) => {
+        if (b.evaluationCount !== a.evaluationCount) {
+          return b.evaluationCount - a.evaluationCount;
+        }
+        return a.name.localeCompare(b.name);
+      });
+      setApplications(loadedApplications);
+    } catch (error) {
+      console.error('Error loading applications:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    // Load evaluations on mount and when location changes (e.g., returning from evaluation)
-    loadEvaluations();
+    // Load applications on mount and when location changes (e.g., returning from evaluation)
+    loadApplications();
   }, [location.pathname]);
 
   return (
@@ -42,7 +52,7 @@ export default function Home() {
       
       <main className="p-6 max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Avaliações Realizadas</h2>
+          <h2 className="text-2xl font-bold text-foreground">Aplicações Avaliadas</h2>
           <Button 
             onClick={() => navigate('/avaliacao')}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -51,10 +61,14 @@ export default function Home() {
           </Button>
         </div>
 
-        {evaluations.length === 0 ? (
+        {loading ? (
+          <div className="bg-card rounded-lg p-12 text-center">
+            <p className="text-muted-foreground text-lg">Carregando aplicações...</p>
+          </div>
+        ) : applications.length === 0 ? (
           <div className="bg-card rounded-lg p-12 text-center">
             <p className="text-muted-foreground text-lg mb-4">
-              Nenhuma avaliação realizada ainda.
+              Nenhuma aplicação avaliada ainda.
             </p>
             <p className="text-muted-foreground text-sm">
               Clique em "Nova Avaliação" para começar.
@@ -66,33 +80,39 @@ export default function Home() {
               <TableHeader>
                 <TableRow className="bg-primary">
                   <TableHead className="text-primary-foreground font-semibold">Aplicação</TableHead>
-                  <TableHead className="text-primary-foreground font-semibold">Fluxo</TableHead>
-                  <TableHead className="text-primary-foreground font-semibold">Nota geral</TableHead>
-                  <TableHead className="text-primary-foreground font-semibold">Ações</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Quantidade de Avaliações</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Média de Nota</TableHead>
+                  <TableHead className="text-primary-foreground font-semibold">Link</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {evaluations.map((evaluation) => (
+                {applications.map((application) => (
                   <TableRow 
-                    key={evaluation.id} 
+                    key={application.id} 
                     className="border-b border-border hover:bg-secondary/50 cursor-pointer"
-                    onClick={() => navigate(`/avaliacao/${evaluation.id}`)}
+                    onClick={() => navigate(`/aplicacao/${application.id}`)}
                   >
-                    <TableCell className="text-foreground">{evaluation.applicationName}</TableCell>
-                    <TableCell className="text-foreground">{evaluation.flow}</TableCell>
+                    <TableCell className="text-foreground font-medium">
+                      {application.name}
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {application.evaluationCount}
+                    </TableCell>
                     <TableCell className="text-foreground font-semibold">
-                      {evaluation.overallScore.toFixed(2)}
+                      {application.averageScore !== null 
+                        ? application.averageScore.toFixed(2) 
+                        : 'N/A'}
                     </TableCell>
                     <TableCell>
-                      <button 
+                      <a 
+                        href={application.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
                         className="text-accent hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/avaliacao/${evaluation.id}`);
-                        }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Ver detalhes
-                      </button>
+                        Acessar
+                      </a>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -61,7 +61,7 @@ export interface SectionScore {
 export interface Evaluation {
   id: string;
   applicationName: string;
-  flow: string;
+  flow: Flow | string; // Can be Flow object or string for backward compatibility
   applicationType?: string;
   applicationLink?: string;
   totalRawScore: number; // 25-125 (25 questions * 1-5)
@@ -70,6 +70,12 @@ export interface Evaluation {
   sectionScores: SectionScore[];
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+}
+
+export interface Flow {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 /**
@@ -134,3 +140,26 @@ export interface Flow {
   updatedAt: string;
 }
 
+export interface ApplicationWithStats {
+  id: number;
+  name: string;
+  link: string;
+  createdAt: string;
+  updatedAt: string;
+  evaluationCount: number;
+  averageScore: number | null;
+}
+
+export interface EvaluationGroupedByType {
+  applicationType: ApplicationType;
+  evaluations: Evaluation[];
+  count: number;
+  averageScore: number | null;
+}
+
+export interface ApplicationEvaluationsSummary {
+  application: Application;
+  totalCount: number;
+  averageScore: number | null;
+  evaluationsByType: EvaluationGroupedByType[];
+}

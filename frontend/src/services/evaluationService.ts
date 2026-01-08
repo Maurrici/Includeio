@@ -1,5 +1,5 @@
 import { Evaluation } from '@/types/evaluation';
-import { Application, ApplicationType, Flow } from '@/types/evaluation';
+import { Application, ApplicationType, Flow, ApplicationWithStats, ApplicationEvaluationsSummary } from '@/types/evaluation';
 
 const API_BASE_URL = '/api';
 
@@ -20,7 +20,9 @@ export class EvaluationService {
       return backendEvaluations.map((evaluation: any) => ({
         id: evaluation.id,
         applicationName: evaluation.application?.name || 'Unknown',
-        flow: evaluation.flow?.name || 'Unknown',
+        flow: evaluation.flow && typeof evaluation.flow === 'object' 
+          ? { name: evaluation.flow.name, id: evaluation.flow.id, description: evaluation.flow.description } 
+          : (evaluation.flow?.name || 'Unknown'),
         applicationType: evaluation.applicationType?.name || undefined,
         applicationLink: evaluation.application?.link || undefined,
         totalRawScore: evaluation.totalRawScore,
@@ -49,7 +51,9 @@ export class EvaluationService {
       return {
         id: evaluation.id,
         applicationName: evaluation.application?.name || 'Unknown',
-        flow: evaluation.flow?.name || 'Unknown',
+        flow: evaluation.flow && typeof evaluation.flow === 'object' 
+          ? { name: evaluation.flow.name, id: evaluation.flow.id, description: evaluation.flow.description } 
+          : (evaluation.flow?.name || 'Unknown'),
         applicationType: evaluation.applicationType?.name || undefined,
         applicationLink: evaluation.application?.link || undefined,
         totalRawScore: evaluation.totalRawScore,
@@ -170,6 +174,68 @@ export class EvaluationService {
     } catch (error) {
       console.error('Error loading application flows:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get applications with evaluation statistics
+   */
+  static async getApplicationsWithStats(): Promise<ApplicationWithStats[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/applications/with-stats`);
+      if (!response.ok) throw new Error('Failed to fetch applications with stats');
+      return await response.json();
+    } catch (error) {
+      console.error('Error loading applications with stats:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get evaluations for a specific application, grouped by type
+   */
+  static async getEvaluationsByApplication(applicationId: number): Promise<ApplicationEvaluationsSummary | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/evaluations/by-application/${applicationId}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      
+      // Map backend format to frontend format
+      return {
+        application: data.application,
+        totalCount: data.totalCount,
+        averageScore: data.averageScore,
+        evaluationsByType: data.evaluationsByType.map((group: any) => ({
+          applicationType: group.applicationType,
+          count: group.count,
+          averageScore: group.averageScore,
+          evaluations: group.evaluations.map((evaluation: any) => ({
+            id: evaluation.id,
+            applicationName: data.application.name,
+            flow: evaluation.flow && typeof evaluation.flow === 'object' 
+              ? { name: evaluation.flow.name, id: evaluation.flow.id, description: evaluation.flow.description } 
+              : (evaluation.flow?.name || 'Unknown'),
+            applicationType: group.applicationType.name,
+            applicationLink: data.application.link,
+            totalRawScore: evaluation.totalRawScore,
+            normalizedScore: evaluation.normalizedScore,
+            overallScore: evaluation.overallScore,
+            sectionScores: (evaluation.sectionScores || []).map((section: any) => ({
+              sectionId: section.sectionId,
+              sectionName: section.sectionName,
+              rawScore: section.rawScore,
+              normalizedScore: section.normalizedScore,
+              questions: section.questions || [],
+              comment: section.comment || ''
+            })),
+            createdAt: evaluation.createdAt || evaluation.created_at,
+            updatedAt: evaluation.updatedAt || evaluation.updated_at
+          }))
+        }))
+      };
+    } catch (error) {
+      console.error('Error loading evaluations by application:', error);
+      return null;
     }
   }
 }

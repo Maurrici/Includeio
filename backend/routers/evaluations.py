@@ -1,12 +1,29 @@
 """Routes for evaluations"""
 from fastapi import APIRouter, HTTPException
-from typing import List, Optional
+from typing import List, Optional, Dict
+from pydantic import BaseModel
 import uuid
 from datetime import datetime
 from database import db
-from models import Evaluation, EvaluationCreate, EvaluationWithDetails, Application, Flow, SectionScore
+from models import Evaluation, EvaluationCreate, EvaluationWithDetails, Application, Flow, SectionScore, ApplicationType
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
+
+
+class EvaluationGroupedByType(BaseModel):
+    """Evaluation grouped by application type"""
+    applicationType: ApplicationType
+    evaluations: List[Evaluation]
+    count: int
+    averageScore: Optional[float] = None
+
+
+class ApplicationEvaluationsSummary(BaseModel):
+    """Summary of evaluations for an application"""
+    application: Application
+    totalCount: int
+    averageScore: Optional[float] = None
+    evaluationsByType: List[EvaluationGroupedByType]
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -54,6 +71,7 @@ async def get_evaluations(limit: Optional[int] = 100, offset: Optional[int] = 0)
                 section_dict['sectionName'] = section_dict.pop('section_name')
                 section_dict['rawScore'] = section_dict.pop('raw_score')
                 section_dict['normalizedScore'] = float(section_dict.pop('normalized_score'))
+                section_dict['evaluation_id'] = eval_dict['id']  # Add evaluation_id for Pydantic model
                 # Keep created_at as datetime for Pydantic
                 section_scores.append(section_dict)
             
@@ -65,6 +83,159 @@ async def get_evaluations(limit: Optional[int] = 100, offset: Optional[int] = 0)
             result.append(eval_dict)
         
         return result
+
+@router.get("/by-application/{application_id}", response_model=ApplicationEvaluationsSummary)
+async def get_evaluations_by_application(application_id: int):
+    """Get all evaluations for a specific application, grouped by type"""
+    with db.get_cursor() as cursor:
+        # Get application
+        cursor.execute("""
+            SELECT id, name, link, created_at, updated_at
+            FROM applications
+            WHERE id = %s
+        """, (application_id,))
+        app_data = cursor.fetchone()
+        
+        if not app_data:
+            raise HTTPException(status_code=404, detail="Application not found")
+        
+        application = dict(app_data)
+        # Convert dates to ISO strings
+        if application.get('created_at'):
+            application['createdAt'] = application.pop('created_at').isoformat()
+        if application.get('updated_at'):
+            application['updatedAt'] = application.pop('updated_at').isoformat()
+        
+        # Get all evaluations for this application
+        cursor.execute("""
+            SELECT id, application_id, application_type_id, flow_id, total_raw_score, normalized_score, 
+                   overall_score, created_at, updated_at
+            FROM evaluations
+            WHERE application_id = %s
+            ORDER BY created_at DESC
+        """, (application_id,))
+        evaluations_data = cursor.fetchall()
+        
+        if not evaluations_data:
+            return {
+                "application": application,
+                "totalCount": 0,
+                "averageScore": None,
+                "evaluationsByType": []
+            }
+        
+        # Group evaluations by type
+        evaluations_by_type: Dict[int, List[Dict]] = {}
+        type_ids = set()
+        
+        for eval_data in evaluations_data:
+            eval_dict = dict(eval_data)
+            type_id = eval_dict['application_type_id']
+            type_ids.add(type_id)
+            
+            if type_id not in evaluations_by_type:
+                evaluations_by_type[type_id] = []
+            
+            # Get section scores for this evaluation
+            cursor.execute("""
+                SELECT id, section_id, section_name, raw_score, normalized_score, 
+                       comment, created_at
+                FROM section_scores
+                WHERE evaluation_id = %s
+                ORDER BY section_id
+            """, (eval_dict['id'],))
+            sections = cursor.fetchall()
+            
+            section_scores = []
+            for section in sections:
+                section_dict = dict(section)
+                cursor.execute("""
+                    SELECT question_id, score
+                    FROM question_responses
+                    WHERE evaluation_id = %s AND section_id = %s
+                    ORDER BY question_id
+                """, (eval_dict['id'], section_dict['section_id']))
+                questions = cursor.fetchall()
+                section_dict['questions'] = [
+                    {'questionId': q['question_id'], 'score': q['score']} 
+                    for q in questions
+                ]
+                section_dict['sectionId'] = section_dict.pop('section_id')
+                section_dict['sectionName'] = section_dict.pop('section_name')
+                section_dict['rawScore'] = section_dict.pop('raw_score')
+                section_dict['normalizedScore'] = float(section_dict.pop('normalized_score'))
+                section_dict['evaluation_id'] = eval_dict['id']
+                section_scores.append(section_dict)
+            
+            # Get flow for this evaluation
+            cursor.execute("""
+                SELECT id, name, description, created_at, updated_at
+                FROM flows
+                WHERE id = %s
+            """, (eval_dict['flow_id'],))
+            flow_data = cursor.fetchone()
+            flow_dict = None
+            if flow_data:
+                flow_dict = dict(flow_data)
+                if flow_dict.get('created_at'):
+                    flow_dict['createdAt'] = flow_dict.pop('created_at').isoformat()
+                if flow_dict.get('updated_at'):
+                    flow_dict['updatedAt'] = flow_dict.pop('updated_at').isoformat()
+            
+            eval_dict['sectionScores'] = section_scores
+            eval_dict['totalRawScore'] = eval_dict.pop('total_raw_score')
+            eval_dict['normalizedScore'] = float(eval_dict.pop('normalized_score'))
+            eval_dict['overallScore'] = float(eval_dict.pop('overall_score'))
+            # Include flow object for frontend mapping (evaluation.flow?.name)
+            eval_dict['flow'] = flow_dict
+            # Convert dates to ISO strings
+            if eval_dict.get('created_at'):
+                eval_dict['createdAt'] = eval_dict.pop('created_at').isoformat()
+            if eval_dict.get('updated_at'):
+                eval_dict['updatedAt'] = eval_dict.pop('updated_at').isoformat()
+            evaluations_by_type[type_id].append(eval_dict)
+        
+        # Get application types and build response
+        evaluations_by_type_list = []
+        total_score_sum = 0
+        total_count = 0
+        
+        for type_id in type_ids:
+            cursor.execute("""
+                SELECT id, name, created_at
+                FROM application_types
+                WHERE id = %s
+            """, (type_id,))
+            type_data = cursor.fetchone()
+            
+            if type_data:
+                type_dict = dict(type_data)
+                # Convert date to ISO string
+                if type_dict.get('created_at'):
+                    type_dict['createdAt'] = type_dict.pop('created_at').isoformat()
+                
+                evals_for_type = evaluations_by_type[type_id]
+                count = len(evals_for_type)
+                avg_score = sum(e['overallScore'] for e in evals_for_type) / count if count > 0 else None
+                
+                evaluations_by_type_list.append({
+                    "applicationType": type_dict,
+                    "evaluations": evals_for_type,
+                    "count": count,
+                    "averageScore": float(avg_score) if avg_score else None
+                })
+                
+                total_score_sum += sum(e['overallScore'] for e in evals_for_type)
+                total_count += count
+        
+        overall_average = total_score_sum / total_count if total_count > 0 else None
+        
+        return {
+            "application": application,
+            "totalCount": total_count,
+            "averageScore": float(overall_average) if overall_average else None,
+            "evaluationsByType": evaluations_by_type_list
+        }
 
 
 @router.get("/{evaluation_id}", response_model=EvaluationWithDetails)
@@ -140,6 +311,7 @@ async def get_evaluation(evaluation_id: str):
             section_dict['sectionName'] = section_dict.pop('section_name')
             section_dict['rawScore'] = section_dict.pop('raw_score')
             section_dict['normalizedScore'] = float(section_dict.pop('normalized_score'))
+            section_dict['evaluation_id'] = evaluation_id  # Add evaluation_id for Pydantic model
             section_scores.append(section_dict)
         
         eval_dict['sectionScores'] = section_scores
