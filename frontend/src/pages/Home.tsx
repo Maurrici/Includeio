@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
-import { PersonalizeButton } from '@/components/PersonalizeButton';
 import { PersonalizationModal } from '@/components/PersonalizationModal';
 import {
   Table,
@@ -102,7 +101,6 @@ export default function Home() {
         )}
       </main>
 
-      <PersonalizeButton onClick={() => setShowPersonalization(true)} />
       <PersonalizationModal 
         open={showPersonalization} 
         onOpenChange={setShowPersonalization} 
