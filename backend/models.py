@@ -91,6 +91,7 @@ class EvaluationBase(BaseModel):
     application_id: int
     application_type_id: int
     flow_id: int
+    flow: Flow
     totalRawScore: int = Field(..., ge=25, le=125)
     normalizedScore: float = Field(..., ge=0.0, le=10.0)
     overallScore: float = Field(..., ge=0.0, le=10.0)
