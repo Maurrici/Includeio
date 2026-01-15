@@ -91,7 +91,6 @@ class EvaluationBase(BaseModel):
     application_id: int
     application_type_id: int
     flow_id: int
-    flow: Flow
     totalRawScore: int = Field(..., ge=25, le=125)
     normalizedScore: float = Field(..., ge=0.0, le=10.0)
     overallScore: float = Field(..., ge=0.0, le=10.0)
@@ -112,6 +111,16 @@ class Evaluation(EvaluationBase):
         from_attributes = True
         populate_by_name = True
 
+class EvaluationWithFlow(EvaluationBase):
+    id: str
+    flow: Flow
+    createdAt: datetime = Field(alias="created_at")
+    updatedAt: datetime = Field(alias="updated_at")
+    sectionScores: List[SectionScore] = []
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 class EvaluationWithDetails(Evaluation):
     application: Application

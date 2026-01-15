@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import uuid
 from datetime import datetime
 from database import db
-from models import Evaluation, EvaluationCreate, EvaluationWithDetails, Application, Flow, SectionScore, ApplicationType
+from models import Evaluation, EvaluationCreate, EvaluationWithDetails, Application, Flow, SectionScore, ApplicationType, EvaluationWithFlow
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 class EvaluationGroupedByType(BaseModel):
     """Evaluation grouped by application type"""
     applicationType: ApplicationType
-    evaluations: List[Evaluation]
+    evaluations: List[EvaluationWithFlow]
     count: int
     averageScore: Optional[float] = None
 
