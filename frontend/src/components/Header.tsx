@@ -45,7 +45,7 @@ export function Header({ title }: HeaderProps) {
           <DropdownMenuSeparator />
           
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="focus:bg-muted focus:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground">
               <Palette className="mr-2 h-4 w-4" />
               <span>Tema</span>
             </DropdownMenuSubTrigger>
@@ -59,31 +59,45 @@ export function Header({ title }: HeaderProps) {
                   setTheme(newTheme);
                 }
               }}>
-                <DropdownMenuRadioItem value="light">Claro</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Escuro</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="custom">Personalizado</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light" className="focus:bg-muted focus:text-foreground">
+                  Claro
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark" className="focus:bg-muted focus:text-foreground">
+                  Escuro
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="custom" className="focus:bg-muted focus:text-foreground">
+                  Personalizado
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className="focus:bg-muted focus:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground">
               <Type className="mr-2 h-4 w-4" />
               <span>Tamanho da Fonte</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup value={fontSize} onValueChange={(value) => setFontSize(value as 'small' | 'medium' | 'large' | 'xlarge')}>
-                <DropdownMenuRadioItem value="small">Pequeno</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="medium">Médio</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="large">Grande</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="xlarge">Extra Grande</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="small" className="focus:bg-muted focus:text-foreground">
+                  Pequeno
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="medium" className="focus:bg-muted focus:text-foreground">
+                  Médio
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="large" className="focus:bg-muted focus:text-foreground">
+                  Grande
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="xlarge" className="focus:bg-muted focus:text-foreground">
+                  Extra Grande
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
           <DropdownMenuSeparator />
           
-          <DropdownMenuItem>
+          <DropdownMenuItem className="focus:bg-muted focus:text-foreground">
             <Cog className="mr-2 h-4 w-4" />
             <span>Configurações</span>
           </DropdownMenuItem>

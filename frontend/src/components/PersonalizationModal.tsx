@@ -75,6 +75,63 @@ export function PersonalizationModal({ open, onOpenChange }: PersonalizationModa
     return customColors[colorType] || getDefaultColor(colorType);
   };
 
+  const presetThemes = [
+    {
+      id: 'foco-calmo',
+      name: 'Foco Calmo',
+      description: 'Otimizado para TDAH',
+      baseTheme: 'light' as const,
+      colors: {
+        background: '#F0F4F8',
+        foreground: '#243B53',
+        accent: '#48BB78',
+        primary: '#48BB78',
+      },
+    },
+    {
+      id: 'papel-antigo',
+      name: 'Papel Antigo',
+      description: 'Dislexia/Irlen',
+      baseTheme: 'light' as const,
+      colors: {
+        background: '#F5E6D3',
+        foreground: '#332D2D',
+        accent: '#D97706',
+        primary: '#D97706',
+      },
+    },
+    {
+      id: 'noite-profunda',
+      name: 'Noite Profunda',
+      description: 'Fotofobia',
+      baseTheme: 'dark' as const,
+      colors: {
+        background: '#1A202C',
+        foreground: '#E2E8F0',
+        accent: '#63B3ED',
+        primary: '#63B3ED',
+      },
+    },
+    {
+      id: 'acessibilidade-universal',
+      name: 'Acessibilidade Universal',
+      description: 'Daltonismo',
+      baseTheme: 'light' as const,
+      colors: {
+        background: '#FFFFFF',
+        foreground: '#000000',
+        accent: '#005AB5',
+        primary: '#005AB5',
+      },
+    },
+  ];
+
+  const applyPresetTheme = (preset: typeof presetThemes[number]) => {
+    setBaseTheme(preset.baseTheme);
+    setCustomColors(preset.colors);
+    setTheme('custom');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -174,6 +231,35 @@ export function PersonalizationModal({ open, onOpenChange }: PersonalizationModa
             <p className="text-sm text-muted-foreground mt-2 text-center">
               Pequeno • Médio • Grande • Extra Grande
             </p>
+          </div>
+
+          {/* Preset Themes */}
+          <div>
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              Temas Predefinidos
+            </h3>
+            <div className="space-y-2">
+              {presetThemes.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => applyPresetTheme(preset)}
+                  className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-accent hover:bg-secondary/50"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">{preset.name}</p>
+                      <p className="text-xs text-muted-foreground">{preset.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: preset.colors.background }} />
+                      <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: preset.colors.accent }} />
+                      <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: preset.colors.foreground }} />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Custom Colors */}

@@ -98,28 +98,35 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     root.classList.remove('font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
     root.classList.add(`font-size-${fontSize}`);
 
-    // Custom colors - converte hex para HSL e aplica como CSS variables
-    if (customColors.background) {
-      root.style.setProperty('--custom-background', customColors.background);
+    // Custom colors - aplica apenas quando o tema é "custom"
+    if (theme === 'custom') {
+      if (customColors.background) {
+        root.style.setProperty('--custom-background', customColors.background);
+      } else {
+        root.style.removeProperty('--custom-background');
+      }
+
+      if (customColors.primary) {
+        root.style.setProperty('--custom-primary', customColors.primary);
+      } else {
+        root.style.removeProperty('--custom-primary');
+      }
+
+      if (customColors.accent) {
+        root.style.setProperty('--custom-accent', customColors.accent);
+      } else {
+        root.style.removeProperty('--custom-accent');
+      }
+
+      if (customColors.foreground) {
+        root.style.setProperty('--custom-foreground', customColors.foreground);
+      } else {
+        root.style.removeProperty('--custom-foreground');
+      }
     } else {
       root.style.removeProperty('--custom-background');
-    }
-
-    if (customColors.primary) {
-      root.style.setProperty('--custom-primary', customColors.primary);
-    } else {
       root.style.removeProperty('--custom-primary');
-    }
-
-    if (customColors.accent) {
-      root.style.setProperty('--custom-accent', customColors.accent);
-    } else {
       root.style.removeProperty('--custom-accent');
-    }
-
-    if (customColors.foreground) {
-      root.style.setProperty('--custom-foreground', customColors.foreground);
-    } else {
       root.style.removeProperty('--custom-foreground');
     }
   }, [theme, baseTheme, fontSize, highContrast, customColors]);
